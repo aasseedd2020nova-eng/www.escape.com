@@ -1,0 +1,30 @@
+'use strict';
+(()=>{
+ const $=id=>document.getElementById(id),a=$('activateTab'),r=$('retrieveTab');
+ let currentCode='',lookupByPhone=false,lookupPhone='';
+ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const date=s=>s?new Date(s).toLocaleDateString('ar-SA-u-ca-gregory',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Riyadh'}):'—';
+ const labelStatus=s=>({unused:'لم يُفعّل',active:'ساري',suspended:'موقوف',cancelled:'ملغي'})[s]||s;
+ const months=n=>Number(n)===60?'5 سنوات':Number(n)===12?'سنة واحدة':`${n} شهرًا`;
+ async function api(url,options={}){const res=await fetch(url,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options});let body;try{body=await res.json()}catch{body={error:'تعذر الاتصال بالخادم.'}}if(!res.ok)throw Error(body.error||'تعذر تنفيذ الطلب');return body}
+ function tab(which){const act=which==='a';a.classList.toggle('active',act);r.classList.toggle('active',!act);$('activation').classList.toggle('hidden',!act);$('retrieve').classList.toggle('hidden',act)}
+ a.onclick=()=>tab('a');r.onclick=()=>tab('r');
+ function err(message){$('error').textContent=message;$('error').classList.remove('hidden')}
+ $('form').onsubmit=async e=>{e.preventDefault();$('error').classList.add('hidden');const code=$('code').value.trim().toUpperCase(),phone=$('phone').value.trim();if(!/^[A-Z]-\d{4}$/.test(code))return err('الكود يجب أن يكون حرفًا إنجليزيًا وشرطة وأربعة أرقام، مثل A-4827.');if(!$('agree').checked)return err('يجب الموافقة على استلام شهادة الضمان.');const btn=e.submitter||$('form').querySelector('[type=submit]');btn.disabled=true;
+ try{const data=await api('/api/activate',{method:'POST',body:JSON.stringify({code,phone,consent:true})});currentCode=code;$('savedCode').textContent=code;$('successProduct').textContent=data.warranty.product;$('successMonths').textContent=months(data.warranty.warrantyMonths);$('dateToday').textContent=date(data.warranty.installationDate);$('pdfDownload').href=data.pdfUrl;$('pdfDownload').setAttribute('download',`ESCAPE-${code}.pdf`);$('entry').classList.add('hidden');$('success').classList.remove('hidden');$('success').querySelector('.status').textContent=data.whatsapp==='queued'?'تم تسجيل طلب إرسال الشهادة عبر واتساب. يمكن تحميل PDF الآن.':'الشهادة جاهزة للتحميل. إرسال واتساب التلقائي بانتظار تفعيل ربط Meta.'}
+ catch(ex){err(ex.message)}finally{btn.disabled=false}};
+ $('reset').onclick=()=>{$('form').reset();$('entry').classList.remove('hidden');$('success').classList.add('hidden');$('error').classList.add('hidden')};
+ $('showCert').onclick=()=>$('modal').classList.add('open');$('close').onclick=()=>$('modal').classList.remove('open');$('modal').onclick=e=>{if(e.target===$('modal'))$('modal').classList.remove('open')};
+ function searchMode(phone){lookupByPhone=phone;$('byCode').classList.toggle('active',!phone);$('byPhone').classList.toggle('active',phone);$('retrieveLabel').textContent=phone?'رقم الجوال':'كود الضمان';$('retrieveInput').placeholder=phone?'05XXXXXXXX':'A-4827';$('retrieveInput').value='';$('retrieveMessage').textContent=phone?'سنرسل رمز تحقق إلى واتساب قبل عرض ضماناتك.':'أدخل كود الضمان للتحقق من حالته.';$('verifyResult').classList.add('hidden');$('certificateAccess').classList.add('hidden');$('otpPanel').classList.add('hidden')}
+ $('byCode').onclick=()=>searchMode(false);$('byPhone').onclick=()=>searchMode(true);
+ $('retrieveSearch').onclick=async()=>{const v=$('retrieveInput').value.trim();$('retrieveMessage').textContent='جارٍ التحقق...';$('verifyResult').classList.add('hidden');$('certificateAccess').classList.add('hidden');$('otpPanel').classList.add('hidden');
+ try{if(lookupByPhone){lookupPhone=v;await api('/api/phone/request',{method:'POST',body:JSON.stringify({phone:v})});$('otpPanel').classList.remove('hidden');$('retrieveMessage').textContent='أرسلنا رمزًا إلى واتساب. أدخله للمتابعة.';return}
+ const code=v.toUpperCase();const data=await api(`/api/verify/${encodeURIComponent(code)}`);currentCode=code;const w=data.warranty;
+ $('verifyResult').innerHTML=`<strong>${escapeHtml(w.code)}</strong><div>المنتج: ${escapeHtml(w.product)}</div><div>الحالة: ${escapeHtml(labelStatus(w.status))}</div><div>تاريخ التفعيل: ${escapeHtml(date(w.installationDate))}</div><div>انتهاء الضمان: ${escapeHtml(date(w.expiryDate))}</div>`;
+ $('verifyResult').classList.remove('hidden');if(w.installationDate)$('certificateAccess').classList.remove('hidden');$('retrieveMessage').textContent='تم التحقق من بيانات الضمان.';
+ }catch(ex){$('retrieveMessage').textContent=ex.message}};
+ $('getCertificate').onclick=async()=>{try{const d=await api('/api/certificate/access',{method:'POST',body:JSON.stringify({code:currentCode,phone:$('certificatePhone').value})});window.location.assign(d.pdfUrl);$('accessMessage').textContent='يجري تحميل شهادة الضمان.'}catch(ex){$('accessMessage').textContent=ex.message}};
+ $('confirmOtp').onclick=async()=>{try{await api('/api/phone/confirm',{method:'POST',body:JSON.stringify({phone:lookupPhone,otp:$('otpInput').value})});const d=await api('/api/phone/warranties');$('otpPanel').classList.add('hidden');$('verifyResult').innerHTML=d.warranties.length?d.warranties.map(w=>`<div><strong>${escapeHtml(w.code)}</strong> — ${escapeHtml(w.product)} — ${escapeHtml(labelStatus(w.status))}<div>الانتهاء: ${escapeHtml(date(w.expiryDate))}</div><a href="${escapeHtml(w.pdfUrl)}">تحميل PDF ↓</a></div>`).join('<hr>'):'لا توجد ضمانات مرتبطة بهذا الرقم.';$('verifyResult').classList.remove('hidden');$('retrieveMessage').textContent='تم التحقق من رقم الجوال.'}catch(ex){$('retrieveMessage').textContent=ex.message}};
+ fetch('/api/public-config').then(r=>r.json()).then(d=>{const wa=document.querySelector('.wa-support');if(wa&&/^\d{9,15}$/.test(d.supportWhatsapp))wa.href=`https://wa.me/${d.supportWhatsapp}?text=${encodeURIComponent('مرحبًا، أحتاج مساعدة بخصوص ضمان ESCAPE')}`}).catch(()=>{});
+ const params=new URLSearchParams(location.search);if(params.get('code')){tab('r');searchMode(false);$('retrieveInput').value=params.get('code');$('retrieveSearch').click()}
+})();
