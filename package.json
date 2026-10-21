@@ -1,0 +1,19 @@
+{
+  "name": "escape-warranty-platform", "version": "1.0.0", "private": true,
+  "description": "ESCAPE warranty activation, verification, admin, PDF and WhatsApp Cloud API",
+  "scripts": {"start":"node server.js", "check":"node --check server.js && node --check public/app.js && node --check public/admin.js && node --check public/login.js && node --check lib.js && node --check certificate.js && node --check whatsapp.js && node --test tests/*.test.js", "hash-password":"node scripts/hash-password.js"},
+  "engines":{"node":">=20"},
+  "dependencies":{
+    "@fontsource/noto-sans-arabic":"^5.2.0",
+    "bcryptjs":"^2.4.3",
+    "connect-pg-simple":"^10.0.0",
+    "dotenv":"^16.4.5",
+    "express":"^4.21.2",
+    "express-rate-limit":"^7.5.0",
+    "express-session":"^1.18.1",
+    "helmet":"^8.0.0",
+    "pdfkit":"^0.16.0",
+    "pg":"^8.13.1",
+    "qrcode":"^1.5.4"
+  }
+}
